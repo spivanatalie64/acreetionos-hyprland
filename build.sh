@@ -67,12 +67,15 @@ SigLevel = Never
 
 [core]
 Server = https://mirror.archlinux32.org/x86_64/$repo
+Include = /etc/pacman.d/mirrorlist
 
 [extra]
 Server = https://mirror.archlinux32.org/x86_64/$repo
+Include = /etc/pacman.d/mirrorlist
 
 [community]
 Server = https://mirror.archlinux32.org/x86_64/$repo
+Include = /etc/pacman.d/mirrorlist
 PACMAN
 
 # Remove conflicting files before building
