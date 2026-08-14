@@ -1,98 +1,37 @@
-#!/bin/bash
-# AcreetionOS Hyprland Edition — build script
-set -e
-WORK=$(mktemp -d)
-ISO_NAME="AcreetionOS-Hyprland-$(date +%Y%m%d)-x86_64.iso"
-SCRIPT="/tmp/buildhypr.sh"
-OUTDIR="/tmp/ac-hypr-output"
-mkdir -p "$OUTDIR"
+#!/usr/bin/env bash
+# build.sh — Build AcreetionOS-Hyprland ISO
+# Usage: ./build.sh
 
-echo "=== Building $ISO_NAME ==="
+set -euo pipefail
 
-cat > "$SCRIPT" << 'INNER'
-#!/bin/bash
-set -e
-pacman -Sy --noconfirm archiso git
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OUTPUT_DIR="${OUTPUT_DIR:-${SCRIPT_DIR}/../ISO}"
 
-git clone https://github.com/acreetionos-code/acreetionos.git /source
-cd /source
+cd "$SCRIPT_DIR"
 
-# Customize for Hyprland
-sed -i 's/iso_name=.*/iso_name="AcreetionOS-Hyprland"/' profiledef.sh
-sed -i 's/iso_label=.*/iso_label="AC-HYPRLAND"/' profiledef.sh
+echo "  :: AcreetionOS-Hyprland — Building ISO"
+echo "  :: Output: ${OUTPUT_DIR}"
 
-# Replace package list with Hyprland packages
-cat > packages.x86_64 << 'PKGS'
-base
-base-devel
-linux
-linux-firmware
-grub
-efibootmgr
-networkmanager
-hyprland
-hyprpaper
-hyprlock
-hypridle
-waybar
-wofi
-dunst
-kitty
-thunar
-foot
-mako
-polkit-kde-agent
-qt5-wayland
-qt6-wayland
-xdg-desktop-portal-hyprland
-pipewire
-pipewire-pulse
-wireplumber
-network-manager-applet
-firefox
-nano
-sudo
-git
-wget
-curl
-ttf-jetbrains-mono-nerd
-noto-fonts
-noto-fonts-emoji
-PKGS
-
-cat > pacman.conf << 'PACMAN'
-[options]
-Architecture = x86_64
-SigLevel = Never
-
-[core]
-Server = https://mirror.archlinux32.org/x86_64/$repo
-Include = /etc/pacman.d/mirrorlist
-
-[extra]
-Server = https://mirror.archlinux32.org/x86_64/$repo
-Include = /etc/pacman.d/mirrorlist
-
-[community]
-Server = https://mirror.archlinux32.org/x86_64/$repo
-Include = /etc/pacman.d/mirrorlist
-PACMAN
-
-# Remove conflicting files before building
-find /work -path "*/__pycache__/*" -delete 2>/dev/null || true
-mkdir -p /work/x86_64/airootfs 2>/dev/null || true
-mkarchiso -v -w /work -o /output .
-INNER
-
-chmod +x "$SCRIPT"
-docker run --privileged --rm -v "$SCRIPT:$SCRIPT" -v "$OUTDIR:/output" archlinux:latest bash "$SCRIPT" 2>&1
-
-ISO=$(find "$OUTDIR" -name "*.iso" 2>/dev/null | head -1)
-if [ -n "$ISO" ]; then
-  cp "$ISO" "./$ISO_NAME"
-  echo "✓ ISO produced: $ISO_NAME"
-else
-  echo "No ISO found in $OUTDIR"
-  ls -la "$OUTDIR" 2>/dev/null || true
+if [ -f ./generate-build-info.sh ]; then
+  ./generate-build-info.sh
 fi
-echo "=== Complete ==="
+
+echo "  :: Cleaning workspace..."
+./refresh.sh -j 2>/dev/null || true
+
+echo "  :: Running mkarchiso..."
+./mkarchiso.sh
+
+FOUND_ISO=$(find "${OUTPUT_DIR}" -name "AcreetionOS-Hyprland*.iso" -type f 2>/dev/null | head -1)
+if [ -n "$FOUND_ISO" ]; then
+  echo "  ✓ ISO: $FOUND_ISO"
+  ls -lh "$FOUND_ISO"
+  sha256sum "$FOUND_ISO" > "${FOUND_ISO}.sha256"
+  md5sum "$FOUND_ISO" > "${FOUND_ISO}.md5"
+else
+  echo "  ! No ISO found in ${OUTPUT_DIR}/ — checking out/"
+  ls -lh out/ 2>/dev/null || true
+fi
+
+sudo rm -rf ./work 2>/dev/null || true
+echo "  :: Done!"
